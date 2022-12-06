@@ -7,8 +7,10 @@ import com.nttdata.card.model.Transaction;
 import com.nttdata.card.repository.CardRepository;
 import com.nttdata.card.service.CardService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -29,6 +31,12 @@ public class CardServiceImpl implements CardService {
 
     @Autowired
     CardRepository cardRepository;
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    public CardServiceImpl(@Qualifier("kafkaStringTemplate") KafkaTemplate<String, String> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
 
     @Override
     public Flux<Card> findAll() {
@@ -68,6 +76,18 @@ public class CardServiceImpl implements CardService {
     }
 
     @Override
+    public Mono<Card> associatePrimaryAccountKafka(String idAccount) {
+        return this.webClient.build().get().uri("/bankAccount/{bankAccountId}", idAccount).retrieve().bodyToMono(BankAccount.class)
+                .flatMap( x -> this.findById(x.getDebitCardId()))
+                .filter(debitcard -> debitcard.getPrimaryAccountId()==null)
+                .flatMap(x -> {
+                    x.setPrimaryAccountId(idAccount);
+                    sendPrimaryAccount(idAccount);
+                    return update(x);
+                });
+    }
+
+    @Override
     public Mono<Float> getPrimaryAccountAmount(String debitCardId) {
         return findById(debitCardId).flatMap(card -> {
             return this.webClient.build().get().uri("/bankAccount/{bankAccountId}", card.getPrimaryAccountId()).retrieve().bodyToMono(BankAccount.class);
@@ -102,6 +122,10 @@ public class CardServiceImpl implements CardService {
                 });
 
         return accounts;
+    }
+
+    public void sendPrimaryAccount(String primaryAccountId) {
+        this.kafkaTemplate.send("primary-account",primaryAccountId);
     }
 
 
