@@ -25,4 +25,6 @@ public interface CardService {
     public Mono<Float> getPrimaryAccountAmount(String debitCardId);
 
     public Flux<BankAccount> payWithDebitCard(String debitCardId, Float amountToPay);
+
+    public Mono<Card> associatePrimaryAccountKafka(String idAccount);
 }

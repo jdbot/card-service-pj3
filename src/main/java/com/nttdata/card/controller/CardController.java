@@ -77,4 +77,11 @@ public class CardController {
     public Flux<BankAccount> payWithDebitCard(@PathVariable("debitCardId") String debitCardId, @PathVariable("amountToPay") Float amountToPay) {
         return cardService.payWithDebitCard(debitCardId, amountToPay);
     }
+
+    //Method to associate a primary account using kafka
+    @PutMapping("/associatePrimaryAccountKafka/{bankAccountId}")
+    @ResponseStatus(HttpStatus.OK)
+    public Mono<Card> associatePrimaryAccountKafka(@PathVariable("bankAccountId") String idAccount) {
+        return cardService.associatePrimaryAccountKafka(idAccount);
+    }
 }

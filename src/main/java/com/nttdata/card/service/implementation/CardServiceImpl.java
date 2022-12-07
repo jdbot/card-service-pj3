@@ -6,9 +6,13 @@ import com.nttdata.card.model.Card;
 import com.nttdata.card.model.Transaction;
 import com.nttdata.card.repository.CardRepository;
 import com.nttdata.card.service.CardService;
+import com.nttdata.card.service.producer.Producer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -24,11 +28,20 @@ import java.util.Comparator;
 @Service
 public class CardServiceImpl implements CardService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(CardServiceImpl.class);
+
+    private final Producer producer;
+
     @Autowired
     private WebClient.Builder webClient;
 
     @Autowired
     CardRepository cardRepository;
+
+    @Autowired
+    public CardServiceImpl(Producer producer) {
+        this.producer = producer;
+    }
 
     @Override
     public Flux<Card> findAll() {
@@ -103,6 +116,20 @@ public class CardServiceImpl implements CardService {
 
         return accounts;
     }
+
+    @Override
+    public Mono<Card> associatePrimaryAccountKafka(String idAccount) {
+        return this.webClient.build().get().uri("/bankAccount/{bankAccountId}", idAccount).retrieve().bodyToMono(BankAccount.class)
+                .flatMap( x -> this.findById(x.getDebitCardId()))
+                .filter(debitcard -> debitcard.getPrimaryAccountId()==null)
+                .flatMap(x -> {
+                    x.setPrimaryAccountId(idAccount);
+                    producer.sendPrimaryAccount(idAccount);
+                    return update(x);
+                });
+    }
+
+
 
 
 }
